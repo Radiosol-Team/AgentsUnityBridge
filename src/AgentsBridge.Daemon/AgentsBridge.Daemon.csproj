@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="../AgentsBridge.Contracts/AgentsBridge.Contracts.csproj" />
+  </ItemGroup>
+</Project>

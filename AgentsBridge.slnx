@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentsBridge.Contracts/AgentsBridge.Contracts.csproj" />
+    <Project Path="src/AgentsBridge.Daemon/AgentsBridge.Daemon.csproj" />
+    <Project Path="src/AgentsBridge.Desktop/AgentsBridge.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentsBridge.Daemon.Tests/AgentsBridge.Daemon.Tests.csproj" />
+  </Folder>
+</Solution>
