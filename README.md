@@ -22,3 +22,9 @@ dotnet run --project src/AgentsBridge.Desktop
 ```
 
 The daemon must be running before Unity can connect. While the daemon is healthy but Unity is offline, `/health` remains available and Unity-dependent endpoints return HTTP 503 with a structured `unity_disconnected` response.
+
+The desktop app can start the packaged daemon, shows live Unity compilation/import/test and dirty-scene state, and lists projects from Unity Hub. When no editor is connected, a project can be opened with its matching Hub-installed Unity version.
+
+## Releases
+
+Every push to `main` runs formatting, build, and test validation, creates self-contained packages for Windows, Linux, and Intel/Apple Silicon macOS, and publishes them in a generated GitHub release. The workflow requires the repository's Actions setting to allow `GITHUB_TOKEN` write access to repository contents.
