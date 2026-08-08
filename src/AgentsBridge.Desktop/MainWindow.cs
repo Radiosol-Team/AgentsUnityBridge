@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -119,14 +120,18 @@ internal sealed class MainWindow : Window
             Children = { _startDaemonButton, _forceBridgeButton, refreshButton }
         };
 
-        Grid header = new()
+        StackPanel brand = new()
         {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            Orientation = Orientation.Horizontal,
+            Spacing = 14,
+            VerticalAlignment = VerticalAlignment.Center,
             Children =
             {
+                LogoMark(),
                 new StackPanel
                 {
                     Spacing = 5,
+                    VerticalAlignment = VerticalAlignment.Center,
                     Children =
                     {
                         new TextBlock
@@ -138,9 +143,14 @@ internal sealed class MainWindow : Window
                         },
                         _summary
                     }
-                },
-                headerActions
+                }
             }
+        };
+
+        Grid header = new()
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            Children = { brand, headerActions }
         };
         Grid.SetColumn(headerActions, 1);
 
@@ -582,6 +592,67 @@ internal sealed class MainWindow : Window
         FontWeight = FontWeight.SemiBold,
         Foreground = Brushes.White
     };
+
+    private static Control LogoMark()
+    {
+        Canvas artwork = new()
+        {
+            Width = 48,
+            Height = 48,
+            Children =
+            {
+                new Avalonia.Controls.Shapes.Path
+                {
+                    Data = Geometry.Parse("M10 32 C10 18 16 10 24 10 C32 10 38 18 38 32"),
+                    Stroke = new SolidColorBrush(Color.Parse("#65DACA")),
+                    StrokeThickness = 4,
+                    StrokeLineCap = PenLineCap.Round
+                },
+                new Avalonia.Controls.Shapes.Path
+                {
+                    Data = Geometry.Parse("M16 32 H32"),
+                    Stroke = new SolidColorBrush(Color.Parse("#79A8FF")),
+                    StrokeThickness = 4,
+                    StrokeLineCap = PenLineCap.Round
+                },
+                new Ellipse
+                {
+                    Width = 9,
+                    Height = 9,
+                    Fill = new SolidColorBrush(Color.Parse("#65DACA")),
+                    [Canvas.LeftProperty] = 5.5,
+                    [Canvas.TopProperty] = 27.5
+                },
+                new Ellipse
+                {
+                    Width = 9,
+                    Height = 9,
+                    Fill = new SolidColorBrush(Color.Parse("#65DACA")),
+                    [Canvas.LeftProperty] = 33.5,
+                    [Canvas.TopProperty] = 27.5
+                },
+                new Ellipse
+                {
+                    Width = 8,
+                    Height = 8,
+                    Fill = new SolidColorBrush(Color.Parse("#79A8FF")),
+                    [Canvas.LeftProperty] = 20,
+                    [Canvas.TopProperty] = 28
+                }
+            }
+        };
+
+        return new Border
+        {
+            Width = 56,
+            Height = 56,
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Color.Parse("#172330")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#314154")),
+            BorderThickness = new Thickness(1),
+            Child = artwork
+        };
+    }
 
     private static TextBlock StatusText() => new()
     {
