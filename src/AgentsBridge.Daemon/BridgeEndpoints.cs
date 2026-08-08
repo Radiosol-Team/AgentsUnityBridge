@@ -28,6 +28,7 @@ public static class BridgeEndpoints
         app.MapGet("/unity/processes", UnityProcesses);
         app.MapGet("/unity/projects", UnityProjects);
         app.MapPost("/unity/activate-bridge", ActivateUnityBridge);
+        app.MapPost("/unity/crash/discard", DiscardUnityCrash);
 
         app.Map(BridgeProtocol.UnitySocketPath, AcceptUnityAsync);
 
@@ -57,6 +58,7 @@ public static class BridgeEndpoints
                 "GET /unity/processes",
                 "GET /unity/projects",
                 "POST /unity/activate-bridge?projectPath=<path>",
+                "POST /unity/crash/discard",
                 "GET /ping or /health"
             }
         });
@@ -66,10 +68,12 @@ public static class BridgeEndpoints
         HttpContext context,
         UnityConnectionManager connections,
         UnityProcessMonitor processMonitor,
+        UnityCrashDetector crashDetector,
         CancellationToken cancellationToken)
     {
         UnityConnectionSnapshot snapshot = connections.GetSnapshot();
         UnityProcessSnapshot processSnapshot = processMonitor.Read();
+        UnityCrashReport? crashReport = crashDetector.Read(processSnapshot, DateTimeOffset.UtcNow);
         if (!snapshot.Connected)
         {
             return BridgeJson.Json(StatusCodes.Status200OK, new
@@ -84,8 +88,11 @@ public static class BridgeEndpoints
                 editorState = processSnapshot.IsRunning ? "loading" : "offline",
                 hint = processSnapshot.IsRunning
                     ? "Unity is running; it may still be loading or the bridge is not active yet."
-                    : "AgentsBridge is running, but no Unity editor is connected.",
+                    : crashReport is not null
+                        ? "Unity appears to have crashed recently."
+                        : "AgentsBridge is running, but no Unity editor is connected.",
                 unityProcess = processSnapshot,
+                crashReport,
                 unity = snapshot
             });
         }
@@ -109,6 +116,7 @@ public static class BridgeEndpoints
                 editorState = "blocked_or_bridge_disconnected",
                 hint = unityHealth.Error,
                 unityProcess = processSnapshot,
+                crashReport,
                 unity = connections.GetSnapshot()
             });
         }
@@ -130,6 +138,7 @@ public static class BridgeEndpoints
             editorState = ReadBoolean(editorHealth, "mainThreadResponsive") ? "connected" : "blocked_or_showing_popup",
             hint = ReadString(editorHealth, "hint"),
             unityProcess = processSnapshot,
+            crashReport,
             unityHealth = editorHealth,
             unity = connections.GetSnapshot()
         });
@@ -166,6 +175,16 @@ public static class BridgeEndpoints
                 message = exception.Message
             });
         }
+    }
+
+    private static IResult DiscardUnityCrash(UnityCrashDetector crashDetector)
+    {
+        crashDetector.Discard();
+        return BridgeJson.Json(StatusCodes.Status200OK, new
+        {
+            ok = true,
+            message = "Unity crash state discarded."
+        });
     }
 
     private static IResult ActivateUnityBridge(
