@@ -5,6 +5,7 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://127.0.0.1:9876");
 builder.Services.AddSingleton<UnityConnectionManager>();
 builder.Services.AddSingleton<UnityProcessMonitor>();
+builder.Services.AddSingleton<UnityCrashDetector>();
 builder.Services.AddSingleton<UnityHubProjectDiscovery>();
 builder.Services.AddSingleton<UnityEditorLauncher>();
 

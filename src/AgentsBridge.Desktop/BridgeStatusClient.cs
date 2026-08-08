@@ -18,12 +18,16 @@ internal sealed class BridgeStatusClient : IDisposable
             JsonElement health = await GetJsonAsync("/health", TimeSpan.FromSeconds(3), cancellationToken);
             bool unityConnected = ReadBoolean(health, "unityConnected");
             JsonElement unity = ReadElement(health, "unity");
+            UnityCrashReportInfo? crashReport = ReadCrashReport(health);
 
             if (!unityConnected)
             {
                 return BridgeDashboard.DaemonOnly(
                     ReadString(unity, "projectPath"),
-                    "Waiting for a Unity editor connection.");
+                    crashReport,
+                    crashReport is not null
+                        ? "Unity appears to have crashed recently."
+                        : "Waiting for a Unity editor connection.");
             }
 
             Task<JsonElement> statusTask = GetJsonAsync("/status", TimeSpan.FromSeconds(12), cancellationToken);
@@ -59,6 +63,7 @@ internal sealed class BridgeStatusClient : IDisposable
                 ReadInt32(errors, "errorCount"),
                 ReadInt32(errors, "warningCount"),
                 ReadLatestRun(runs),
+                crashReport,
                 possibleModal
                     ? "Unity's main thread appears blocked. Focus the editor and check for a popup."
                     : "Unity is connected and responding.");
@@ -99,6 +104,22 @@ internal sealed class BridgeStatusClient : IDisposable
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
         {
             return TestRunResult.Failed(exception.Message);
+        }
+    }
+
+    internal async Task<bool> DiscardCrashAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using HttpResponseMessage response = await _client.PostAsync(
+                "/unity/crash/discard",
+                content: null,
+                cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            return false;
         }
     }
 
@@ -184,6 +205,21 @@ internal sealed class BridgeStatusClient : IDisposable
         return enumerator.MoveNext() ? ParseRun(enumerator.Current) : null;
     }
 
+    private static UnityCrashReportInfo? ReadCrashReport(JsonElement root)
+    {
+        JsonElement crash = ReadElement(root, "crashReport");
+        string? logPath = ReadString(crash, "logPath");
+        string? detectedAtUtc = ReadString(crash, "detectedAtUtc");
+        string? logLastWriteTimeUtc = ReadString(crash, "logLastWriteTimeUtc");
+        string? summary = ReadString(crash, "summary");
+
+        return string.IsNullOrWhiteSpace(logPath) ||
+               string.IsNullOrWhiteSpace(detectedAtUtc) ||
+               string.IsNullOrWhiteSpace(logLastWriteTimeUtc)
+            ? null
+            : new UnityCrashReportInfo(logPath, detectedAtUtc, logLastWriteTimeUtc, summary ?? "Unity crash log was found.");
+    }
+
     private static TestRunSummary ParseRun(JsonElement root)
     {
         IReadOnlyList<string> failures = root.TryGetProperty("failedTestNames", out JsonElement names) &&
@@ -257,19 +293,39 @@ internal sealed record BridgeDashboard(
     int ErrorCount,
     int WarningCount,
     TestRunSummary? LatestRun,
+    UnityCrashReportInfo? CrashReport,
     string Summary)
 {
     internal static BridgeDashboard Offline(string summary) =>
-        new(false, false, false, false, null, null, null, "Offline", false, false, false, false, [], 0, 0, null, summary);
+        new(false, false, false, false, null, null, null, "Offline", false, false, false, false, [], 0, 0, null, null, summary);
 
-    internal static BridgeDashboard DaemonOnly(string? projectPath, string summary) =>
-        new(true, false, false, false, projectPath, null, null, "Unity offline", false, false, false, false, [], 0, 0, null, summary);
+    internal static BridgeDashboard DaemonOnly(string? projectPath, UnityCrashReportInfo? crashReport, string summary) =>
+        new(true, false, false, false, projectPath, null, null, "Unity offline", false, false, false, false, [], 0, 0, null, crashReport, summary);
 
     internal BridgeDashboard WithDisconnectedEditorState(string editorState, string summary) =>
         this with { EditorState = editorState, Summary = summary };
+
+    internal BridgeDashboard WithCrashReport(UnityCrashReportInfo crashReport) =>
+        this with { CrashReport = crashReport, Summary = "Unity appears to have crashed recently." };
+
+    internal BridgeDashboard WithoutCrashReport() =>
+        this with
+        {
+            CrashReport = null,
+            EditorState = DaemonConnected ? "Unity offline" : "Offline",
+            Summary = DaemonConnected
+                ? "Waiting for a Unity editor connection."
+                : "The AgentsBridge daemon is not reachable on port 9876."
+        };
 }
 
 internal sealed record DirtySceneInfo(string Name, string? Path);
+
+internal sealed record UnityCrashReportInfo(
+    string LogPath,
+    string DetectedAtUtc,
+    string LogLastWriteTimeUtc,
+    string Summary);
 
 internal sealed record TestRunSummary(
     bool Passed,
