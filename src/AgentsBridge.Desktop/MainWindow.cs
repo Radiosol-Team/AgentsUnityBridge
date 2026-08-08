@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using AgentsBridge.Local;
 
 namespace AgentsBridge.Desktop;
 
@@ -19,6 +20,7 @@ internal sealed class MainWindow : Window
     private readonly DaemonProcessLauncher _daemonLauncher = new();
     private readonly UnityHubProjectDiscovery _projectDiscovery = new();
     private readonly UnityEditorLauncher _unityLauncher = new();
+    private readonly UnityProcessMonitor _unityProcessMonitor = new();
     private readonly DispatcherTimer _timer;
     private readonly CancellationTokenSource _lifetime = new();
 
@@ -28,6 +30,7 @@ internal sealed class MainWindow : Window
     private readonly TextBlock _projectPath = ValueText();
     private readonly TextBlock _unityVersion = ValueText();
     private readonly TextBlock _editorState = ValueText();
+    private readonly TextBlock _unityProcess = ValueText();
     private readonly TextBlock _connectedAt = ValueText();
     private readonly TextBlock _consoleState = ValueText();
     private readonly TextBlock _dirtyScenes = ValueText();
@@ -39,11 +42,13 @@ internal sealed class MainWindow : Window
     private readonly Border _alert = new() { IsVisible = false };
     private readonly StackPanel _projectsPanel = new() { Spacing = 10 };
     private readonly Button _startDaemonButton = ActionButton("Start daemon");
+    private readonly Button _forceBridgeButton = ActionButton("Force activate bridge");
     private readonly Button _runTestsButton = ActionButton("Run EditMode tests");
     private readonly Button _discardAndRunButton = ActionButton("Discard scene changes and run");
     private readonly Button _cancelTestButton = ActionButton("Cancel");
 
     private BridgeDashboard _dashboard = BridgeDashboard.Offline("Checking daemon status…");
+    private UnityProcessSnapshot _unityProcesses = new([]);
     private bool _refreshing;
     private bool _statusLoaded;
     private bool _testRequestActive;
@@ -62,6 +67,7 @@ internal sealed class MainWindow : Window
 
         _discardAndRunButton.IsVisible = false;
         _cancelTestButton.IsVisible = false;
+        _forceBridgeButton.IsVisible = false;
         WireActions();
         Content = BuildContent();
 
@@ -90,6 +96,7 @@ internal sealed class MainWindow : Window
     private void WireActions()
     {
         _startDaemonButton.Click += async (_, _) => await StartDaemonAsync();
+        _forceBridgeButton.Click += async (_, _) => await ForceActivateBridgeAsync();
         _runTestsButton.Click += async (_, _) => await RunTestsAsync("cancel");
         _discardAndRunButton.Click += async (_, _) => await RunTestsAsync("discard");
         _cancelTestButton.Click += (_, _) => ClearSceneDecision();
@@ -109,7 +116,7 @@ internal sealed class MainWindow : Window
             Orientation = Orientation.Horizontal,
             Spacing = 10,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Children = { _startDaemonButton, refreshButton }
+            Children = { _startDaemonButton, _forceBridgeButton, refreshButton }
         };
 
         Grid header = new()
@@ -158,6 +165,7 @@ internal sealed class MainWindow : Window
             DetailRow("Project", _projectPath),
             DetailRow("Unity version", _unityVersion),
             DetailRow("Editor state", _editorState),
+            DetailRow("Unity process", _unityProcess),
             DetailRow("Connected at", _connectedAt),
             DetailRow("Console", _consoleState),
             DetailRow("Dirty scenes", _dirtyScenes));
@@ -214,6 +222,33 @@ internal sealed class MainWindow : Window
         _summary.Text = "Starting the daemon…";
         DaemonStartResult result = await _daemonLauncher.StartAsync(_lifetime.Token);
         _summary.Text = result.Message;
+        await RefreshAsync();
+    }
+
+    private async Task ForceActivateBridgeAsync()
+    {
+        _forceBridgeButton.IsEnabled = false;
+        _summary.Text = "Preparing Unity bridge activation...";
+
+        DaemonStartResult daemon = await _daemonLauncher.StartAsync(_lifetime.Token);
+        if (!daemon.Success)
+        {
+            _summary.Text = daemon.Message;
+            _forceBridgeButton.IsEnabled = true;
+            return;
+        }
+
+        UnityProjectInfo? project = FindBestActivationProject();
+        if (project is null)
+        {
+            _summary.Text = "Unity is running, but I could not infer the project. In Unity, use Tools > Codex Bridge > Connect to AgentsBridge.";
+            _forceBridgeButton.IsEnabled = true;
+            await RefreshAsync();
+            return;
+        }
+
+        LaunchResult launch = _unityLauncher.Launch(project, forceBridgeConnect: true);
+        _summary.Text = launch.Message;
         await RefreshAsync();
     }
 
@@ -284,6 +319,16 @@ internal sealed class MainWindow : Window
         try
         {
             _dashboard = await _client.ReadAsync(_lifetime.Token);
+            _unityProcesses = _unityProcessMonitor.Read();
+            if (!_dashboard.UnityConnected && _unityProcesses.IsRunning)
+            {
+                _dashboard = _dashboard.WithDisconnectedEditorState(
+                    "Loading",
+                    _dashboard.DaemonConnected
+                        ? "Unity is running; it may still be loading or the bridge is not active yet."
+                        : "Unity is running; start the daemon so the bridge can connect.");
+            }
+
             RenderDashboard(_dashboard);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
@@ -305,8 +350,16 @@ internal sealed class MainWindow : Window
             dashboard.DaemonConnected ? HealthyBrush : OfflineBrush);
         SetStatus(
             _unityState,
-            dashboard.UnityConnected ? dashboard.EditorState : "Disconnected",
-            dashboard.UnityConnected && dashboard.MainThreadResponsive ? HealthyBrush : WaitingBrush);
+            dashboard.UnityConnected
+                ? dashboard.EditorState
+                : _unityProcesses.IsRunning
+                    ? "Unity online. Bridge disconnected"
+                    : "Disconnected",
+            dashboard.UnityConnected && dashboard.MainThreadResponsive
+                ? HealthyBrush
+                : _unityProcesses.IsRunning
+                    ? WaitingBrush
+                    : OfflineBrush);
 
         _summary.Text = dashboard.Summary;
         _startDaemonButton.IsEnabled = !dashboard.DaemonConnected;
@@ -314,6 +367,7 @@ internal sealed class MainWindow : Window
         _projectPath.Text = dashboard.ProjectPath ?? "—";
         _unityVersion.Text = dashboard.UnityVersion ?? "—";
         _editorState.Text = dashboard.EditorState;
+        _unityProcess.Text = FormatUnityProcesses(_unityProcesses);
         _connectedAt.Text = FormatTimestamp(dashboard.ConnectedAtUtc);
         _consoleState.Text = dashboard.UnityConnected
             ? $"{dashboard.ErrorCount} errors, {dashboard.WarningCount} warnings"
@@ -330,6 +384,8 @@ internal sealed class MainWindow : Window
                                     dashboard.MainThreadResponsive &&
                                     !_testRequestActive &&
                                     !_awaitingSceneDecision;
+        _forceBridgeButton.IsVisible = !dashboard.UnityConnected && _unityProcesses.IsRunning;
+        _forceBridgeButton.IsEnabled = !_testRequestActive;
 
         if (dashboard.LatestRun is not null && !_testRequestActive)
         {
@@ -339,6 +395,12 @@ internal sealed class MainWindow : Window
         if (dashboard.PossibleModalDialog)
         {
             ShowAlert("Unity's main thread is not responding. Focus Unity and check for a popup or modal dialog.");
+        }
+        else if (!dashboard.UnityConnected && _unityProcesses.IsRunning)
+        {
+            ShowAlert(dashboard.DaemonConnected
+                ? "Unity is running, but the bridge is disconnected. Force activation will reopen or focus a matching Hub project and ask Unity to connect."
+                : "Unity is running, but the daemon is offline. Force activation will start the daemon first.");
         }
         else if (dashboard.DirtyScenes.Count > 0 && !_awaitingSceneDecision)
         {
@@ -401,7 +463,7 @@ internal sealed class MainWindow : Window
             };
             TextBlock details = new()
             {
-                Text = $"Unity {project.UnityVersion ?? "unknown"}  •  {project.Path}",
+                Text = ProjectDetails(project),
                 Foreground = project.Exists ? SecondaryBrush : OfflineBrush,
                 TextWrapping = TextWrapping.Wrap
             };
@@ -559,5 +621,60 @@ internal sealed class MainWindow : Window
         return scenes.Count == 0
             ? "None"
             : string.Join(", ", scenes.Select(scene => scene.Path ?? scene.Name));
+    }
+
+    private UnityProjectInfo? FindBestActivationProject()
+    {
+        if (_projectsPanel.Tag is not IReadOnlyList<UnityProjectInfo> projects)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_dashboard.ProjectPath))
+        {
+            UnityProjectInfo? connectedProject = projects.FirstOrDefault(project =>
+                string.Equals(project.Path, _dashboard.ProjectPath, StringComparison.OrdinalIgnoreCase));
+            if (connectedProject is not null)
+            {
+                return connectedProject;
+            }
+        }
+
+        UnityProjectInfo? titledProject = projects.FirstOrDefault(project =>
+            project.Exists && _unityProcesses.LooksLikeProject(project.Name));
+        if (titledProject is not null)
+        {
+            return titledProject;
+        }
+
+        UnityProjectInfo[] existingProjects = projects.Where(project => project.Exists).Take(2).ToArray();
+        return existingProjects.Length == 1 ? existingProjects[0] : null;
+    }
+
+    private string ProjectDetails(UnityProjectInfo project)
+    {
+        string details = $"Unity {project.UnityVersion ?? "unknown"}  -  {project.Path}";
+        return !_dashboard.UnityConnected && _unityProcesses.LooksLikeProject(project.Name)
+            ? details + "  -  running"
+            : details;
+    }
+
+    private static string FormatUnityProcesses(UnityProcessSnapshot snapshot)
+    {
+        if (!snapshot.IsRunning)
+        {
+            return "Not running";
+        }
+
+        string titles = string.Join(
+            Environment.NewLine,
+            snapshot.Processes
+                .Select(process => process.WindowTitle)
+                .Where(title => !string.IsNullOrWhiteSpace(title))
+                .Take(3));
+
+        return string.IsNullOrWhiteSpace(titles)
+            ? snapshot.Summary
+            : $"{snapshot.Summary}{Environment.NewLine}{titles}";
     }
 }

@@ -1,6 +1,6 @@
-namespace AgentsBridge.Desktop;
+namespace AgentsBridge.Local;
 
-internal sealed record UnityProjectInfo(
+public sealed record UnityProjectInfo(
     string Name,
     string Path,
     string? UnityVersion,

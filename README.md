@@ -25,6 +25,16 @@ The daemon must be running before Unity can connect. While the daemon is healthy
 
 The desktop app can start the packaged daemon, shows live Unity compilation/import/test and dirty-scene state, and lists projects from Unity Hub. When no editor is connected, a project can be opened with its matching Hub-installed Unity version.
 
+When Unity is running but the editor bridge has not connected yet, the desktop app shows Unity as loading instead of offline. The same local view is available from the daemon:
+
+```text
+GET  /unity/processes
+GET  /unity/projects
+POST /unity/activate-bridge?projectPath=<path>
+```
+
+`/health` also includes `editorState` and `unityProcess`, so agents can distinguish "Unity is not running" from "Unity is loading or the bridge is not active." Bridge activation starts or focuses the selected Unity Hub project and asks the Unity-side connector to enable itself through its command-line entry point.
+
 ## Releases
 
 Every push to `main` runs formatting, build, and test validation, creates self-contained packages for Windows, Linux, and Intel/Apple Silicon macOS, and publishes them in a generated GitHub release. The workflow requires the repository's Actions setting to allow `GITHUB_TOKEN` write access to repository contents.

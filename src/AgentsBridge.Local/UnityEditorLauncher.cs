@@ -1,11 +1,14 @@
 using System.Diagnostics;
 using System.Text.Json;
 
-namespace AgentsBridge.Desktop;
+namespace AgentsBridge.Local;
 
-internal sealed class UnityEditorLauncher
+public sealed class UnityEditorLauncher
 {
-    internal LaunchResult Launch(UnityProjectInfo project)
+    public const string ForceConnectExecuteMethod =
+        "Radiosol.CodexBridge.Editor.EditorHttpBridge.ConnectToAgentsBridgeFromCommandLine";
+
+    public LaunchResult Launch(UnityProjectInfo project, bool forceBridgeConnect = false)
     {
         if (!project.Exists)
         {
@@ -30,12 +33,19 @@ internal sealed class UnityEditorLauncher
         };
         startInfo.ArgumentList.Add("-projectPath");
         startInfo.ArgumentList.Add(project.Path);
+        if (forceBridgeConnect)
+        {
+            startInfo.ArgumentList.Add("-executeMethod");
+            startInfo.ArgumentList.Add(ForceConnectExecuteMethod);
+        }
 
         Process.Start(startInfo);
-        return LaunchResult.Started($"Opening {project.Name} in Unity {project.UnityVersion}.");
+        return LaunchResult.Started(forceBridgeConnect
+            ? $"Opening {project.Name} and asking Unity to connect the bridge."
+            : $"Opening {project.Name} in Unity {project.UnityVersion}.");
     }
 
-    internal static string? FindEditor(string unityVersion)
+    public static string? FindEditor(string unityVersion)
     {
         foreach (string root in EditorRoots())
         {
@@ -98,8 +108,8 @@ internal sealed class UnityEditorLauncher
     }
 }
 
-internal sealed record LaunchResult(bool Success, string Message)
+public sealed record LaunchResult(bool Success, string Message)
 {
-    internal static LaunchResult Started(string message) => new(true, message);
-    internal static LaunchResult Failed(string message) => new(false, message);
+    public static LaunchResult Started(string message) => new(true, message);
+    public static LaunchResult Failed(string message) => new(false, message);
 }

@@ -1,3 +1,4 @@
+using AgentsBridge.Local;
 using Xunit;
 
 namespace AgentsBridge.Desktop.Tests;

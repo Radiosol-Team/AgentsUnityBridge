@@ -1,20 +1,37 @@
 using System.Text.Json;
 
-namespace AgentsBridge.Desktop;
+namespace AgentsBridge.Local;
 
 /// <summary>
 /// Reads Unity Hub's local project index without requiring the Hub process to be running.
 /// The parser tolerates unknown fields so Hub can evolve its schema independently.
 /// </summary>
-internal sealed class UnityHubProjectDiscovery
+public sealed class UnityHubProjectDiscovery
 {
-    internal IReadOnlyList<UnityProjectInfo> Discover()
+    public IReadOnlyList<UnityProjectInfo> Discover()
     {
-        string? indexPath = CandidateIndexPaths().FirstOrDefault(File.Exists);
-        return indexPath is null ? [] : Parse(File.ReadAllText(indexPath));
+        foreach (string indexPath in CandidateIndexPaths())
+        {
+            if (!File.Exists(indexPath))
+            {
+                continue;
+            }
+
+            try
+            {
+                return Parse(File.ReadAllText(indexPath));
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Unity Hub keeps several index locations across versions. One unreadable
+                // file should not hide a later readable index from the daemon or UI.
+            }
+        }
+
+        return [];
     }
 
-    internal static IReadOnlyList<UnityProjectInfo> Parse(string json)
+    public static IReadOnlyList<UnityProjectInfo> Parse(string json)
     {
         using JsonDocument document = JsonDocument.Parse(json);
         if (!document.RootElement.TryGetProperty("data", out JsonElement data) ||
@@ -44,6 +61,24 @@ internal sealed class UnityHubProjectDiscovery
             .OrderByDescending(project => project.LastModified)
             .ThenBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    public static UnityProjectInfo? FromProjectPath(string projectPath)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath) || !Directory.Exists(projectPath))
+        {
+            return null;
+        }
+
+        string name = System.IO.Path.GetFileName(projectPath.TrimEnd(
+            System.IO.Path.DirectorySeparatorChar,
+            System.IO.Path.AltDirectorySeparatorChar));
+        return new UnityProjectInfo(
+            string.IsNullOrWhiteSpace(name) ? projectPath : name,
+            projectPath,
+            ReadProjectVersion(projectPath),
+            null,
+            true);
     }
 
     private static IEnumerable<string> CandidateIndexPaths()

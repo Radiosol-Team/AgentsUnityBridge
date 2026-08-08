@@ -264,6 +264,9 @@ internal sealed record BridgeDashboard(
 
     internal static BridgeDashboard DaemonOnly(string? projectPath, string summary) =>
         new(true, false, false, false, projectPath, null, null, "Unity offline", false, false, false, false, [], 0, 0, null, summary);
+
+    internal BridgeDashboard WithDisconnectedEditorState(string editorState, string summary) =>
+        this with { EditorState = editorState, Summary = summary };
 }
 
 internal sealed record DirtySceneInfo(string Name, string? Path);

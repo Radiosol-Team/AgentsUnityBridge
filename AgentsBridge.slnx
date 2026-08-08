@@ -3,6 +3,7 @@
     <Project Path="src/AgentsBridge.Contracts/AgentsBridge.Contracts.csproj" />
     <Project Path="src/AgentsBridge.Daemon/AgentsBridge.Daemon.csproj" />
     <Project Path="src/AgentsBridge.Desktop/AgentsBridge.Desktop.csproj" />
+    <Project Path="src/AgentsBridge.Local/AgentsBridge.Local.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AgentsBridge.Daemon.Tests/AgentsBridge.Daemon.Tests.csproj" />

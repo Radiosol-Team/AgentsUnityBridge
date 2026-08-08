@@ -1,8 +1,12 @@
 using AgentsBridge.Daemon;
+using AgentsBridge.Local;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://127.0.0.1:9876");
 builder.Services.AddSingleton<UnityConnectionManager>();
+builder.Services.AddSingleton<UnityProcessMonitor>();
+builder.Services.AddSingleton<UnityHubProjectDiscovery>();
+builder.Services.AddSingleton<UnityEditorLauncher>();
 
 WebApplication app = builder.Build();
 app.UseWebSockets(new WebSocketOptions
