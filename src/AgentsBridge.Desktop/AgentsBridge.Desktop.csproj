@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <ApplicationIcon>Assets\agentsbridge-logo.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.0" />
@@ -8,6 +9,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
   </ItemGroup>
   <ItemGroup>
+    <AvaloniaResource Include="Assets\agentsbridge-logo.ico" />
+    <AvaloniaResource Include="Assets\agentsbridge-logo.svg" />
     <ProjectReference Include="../AgentsBridge.Local/AgentsBridge.Local.csproj" />
   </ItemGroup>
 </Project>

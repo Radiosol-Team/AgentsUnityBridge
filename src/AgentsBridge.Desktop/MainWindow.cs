@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform;
 using Avalonia.Threading;
 using AgentsBridge.Local;
 using System.Diagnostics;
@@ -66,6 +67,8 @@ internal sealed class MainWindow : Window
     {
         _client = client;
         Title = "AgentsBridge";
+        Icon = new WindowIcon(AssetLoader.Open(new Uri(
+            "avares://AgentsBridge.Desktop/Assets/agentsbridge-logo.ico")));
         Width = 920;
         Height = 780;
         MinWidth = 720;

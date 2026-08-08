@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">AgentsBridge logo</title>
+  <desc id="desc">Two endpoints connected beneath a bridge arc with a central signal node.</desc>
+  <rect width="256" height="256" rx="42" fill="#172330"/>
+  <rect x="4" y="4" width="248" height="248" rx="38" fill="none" stroke="#314154" stroke-width="8"/>
+  <path d="M48 169C48 94 81 52 128 52s80 42 80 117"
+        fill="none" stroke="#65DACA" stroke-width="22" stroke-linecap="round"/>
+  <path d="M78 169h100"
+        fill="none" stroke="#79A8FF" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="48" cy="169" r="24" fill="#65DACA"/>
+  <circle cx="208" cy="169" r="24" fill="#65DACA"/>
+  <circle cx="128" cy="169" r="22" fill="#79A8FF"/>
+</svg>
