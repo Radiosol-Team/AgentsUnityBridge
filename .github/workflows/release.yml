@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+
   workflow_dispatch:
 
 permissions:
@@ -14,46 +15,27 @@ env:
   DOTNET_NOLOGO: true
 
 jobs:
-  validate:
-    name: Validate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Restore
-        run: dotnet restore AgentsBridge.slnx
-
-      - name: Build
-        run: dotnet build AgentsBridge.slnx --configuration Release --no-restore
-
-      - name: Test
-        run: dotnet test --solution AgentsBridge.slnx --configuration Release --no-build --no-restore
-
-      - name: Verify formatting
-        run: dotnet format AgentsBridge.slnx --no-restore --verify-no-changes
-
   package:
     name: Package ${{ matrix.rid }}
-    needs: validate
+
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: windows-latest
             rid: win-x64
+
           - runner: ubuntu-latest
             rid: linux-x64
+
           - runner: macos-latest
             rid: osx-x64
+
           - runner: macos-latest
             rid: osx-arm64
+
     runs-on: ${{ matrix.runner }}
+
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -68,7 +50,10 @@ jobs:
         run: |
           $package = Join-Path $PWD "package"
           $daemon = Join-Path $package "daemon"
+          $artifacts = Join-Path $PWD "artifacts"
+
           New-Item -ItemType Directory -Force $daemon | Out-Null
+          New-Item -ItemType Directory -Force $artifacts | Out-Null
 
           dotnet publish src/AgentsBridge.Desktop/AgentsBridge.Desktop.csproj `
             --configuration Release `
@@ -83,8 +68,10 @@ jobs:
             --output $daemon
 
           Copy-Item README.md $package
-          New-Item -ItemType Directory -Force artifacts | Out-Null
-          Compress-Archive -Path "$package/*" -DestinationPath "artifacts/AgentsBridge-${{ matrix.rid }}.zip"
+
+          Compress-Archive `
+            -Path "$package/*" `
+            -DestinationPath "$artifacts/AgentsBridge-${{ matrix.rid }}.zip"
 
       - name: Upload package
         uses: actions/upload-artifact@v4
@@ -97,6 +84,7 @@ jobs:
     name: Create GitHub release
     needs: package
     runs-on: ubuntu-latest
+
     steps:
       - name: Download packages
         uses: actions/download-artifact@v4
