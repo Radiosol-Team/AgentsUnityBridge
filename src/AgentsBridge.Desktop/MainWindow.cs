@@ -4,6 +4,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using AgentsBridge.Local;
+using System.Diagnostics;
 
 namespace AgentsBridge.Desktop;
 
@@ -21,6 +22,7 @@ internal sealed class MainWindow : Window
     private readonly UnityHubProjectDiscovery _projectDiscovery = new();
     private readonly UnityEditorLauncher _unityLauncher = new();
     private readonly UnityProcessMonitor _unityProcessMonitor = new();
+    private readonly UnityCrashDetector _unityCrashDetector = new();
     private readonly DispatcherTimer _timer;
     private readonly CancellationTokenSource _lifetime = new();
 
@@ -31,6 +33,7 @@ internal sealed class MainWindow : Window
     private readonly TextBlock _unityVersion = ValueText();
     private readonly TextBlock _editorState = ValueText();
     private readonly TextBlock _unityProcess = ValueText();
+    private readonly TextBlock _crashSummary = ValueText();
     private readonly TextBlock _connectedAt = ValueText();
     private readonly TextBlock _consoleState = ValueText();
     private readonly TextBlock _dirtyScenes = ValueText();
@@ -46,6 +49,10 @@ internal sealed class MainWindow : Window
     private readonly Button _runTestsButton = ActionButton("Run EditMode tests");
     private readonly Button _discardAndRunButton = ActionButton("Discard scene changes and run");
     private readonly Button _cancelTestButton = ActionButton("Cancel");
+    private readonly Button _inspectCrashButton = ActionButton("Inspect");
+    private readonly Button _discardCrashButton = ActionButton("Discard");
+    private Grid _crashReportRow = null!;
+    private StackPanel _crashActions = null!;
 
     private BridgeDashboard _dashboard = BridgeDashboard.Offline("Checking daemon status…");
     private UnityProcessSnapshot _unityProcesses = new([]);
@@ -68,6 +75,8 @@ internal sealed class MainWindow : Window
         _discardAndRunButton.IsVisible = false;
         _cancelTestButton.IsVisible = false;
         _forceBridgeButton.IsVisible = false;
+        _inspectCrashButton.IsVisible = false;
+        _discardCrashButton.IsVisible = false;
         WireActions();
         Content = BuildContent();
 
@@ -100,6 +109,8 @@ internal sealed class MainWindow : Window
         _runTestsButton.Click += async (_, _) => await RunTestsAsync("cancel");
         _discardAndRunButton.Click += async (_, _) => await RunTestsAsync("discard");
         _cancelTestButton.Click += (_, _) => ClearSceneDecision();
+        _inspectCrashButton.Click += (_, _) => OpenCrashLog();
+        _discardCrashButton.Click += async (_, _) => await DiscardCrashAsync();
     }
 
     private Control BuildContent()
@@ -160,12 +171,24 @@ internal sealed class MainWindow : Window
         _alert.Padding = new Thickness(18);
         _alert.Child = _alertText;
 
+        _crashReportRow = DetailRow("Crash report", _crashSummary);
+        _crashReportRow.IsVisible = false;
+        _crashActions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 10,
+            IsVisible = false,
+            Children = { _inspectCrashButton, _discardCrashButton }
+        };
+
         Border editorDetails = Card(
             "Unity diagnostics",
             DetailRow("Project", _projectPath),
             DetailRow("Unity version", _unityVersion),
             DetailRow("Editor state", _editorState),
             DetailRow("Unity process", _unityProcess),
+            _crashReportRow,
+            _crashActions,
             DetailRow("Connected at", _connectedAt),
             DetailRow("Console", _consoleState),
             DetailRow("Dirty scenes", _dirtyScenes));
@@ -320,6 +343,16 @@ internal sealed class MainWindow : Window
         {
             _dashboard = await _client.ReadAsync(_lifetime.Token);
             _unityProcesses = _unityProcessMonitor.Read();
+            UnityCrashReport? localCrashReport = _unityCrashDetector.Read(_unityProcesses, DateTimeOffset.UtcNow);
+            if (_dashboard.CrashReport is null && localCrashReport is not null)
+            {
+                _dashboard = _dashboard.WithCrashReport(new UnityCrashReportInfo(
+                    localCrashReport.LogPath,
+                    localCrashReport.DetectedAtUtc.ToString("O"),
+                    localCrashReport.LogLastWriteTimeUtc.ToString("O"),
+                    localCrashReport.Summary));
+            }
+
             if (!_dashboard.UnityConnected && _unityProcesses.IsRunning)
             {
                 _dashboard = _dashboard.WithDisconnectedEditorState(
@@ -344,18 +377,23 @@ internal sealed class MainWindow : Window
     private void RenderDashboard(BridgeDashboard dashboard)
     {
         _statusLoaded = true;
+        bool crashedRecently = dashboard.CrashReport is not null && !dashboard.UnityConnected && !_unityProcesses.IsRunning;
         SetStatus(
             _daemonState,
             dashboard.DaemonConnected ? "Running" : "Offline",
             dashboard.DaemonConnected ? HealthyBrush : OfflineBrush);
         SetStatus(
             _unityState,
-            dashboard.UnityConnected
+            crashedRecently
+                ? "Crashed"
+                : dashboard.UnityConnected
                 ? dashboard.EditorState
                 : _unityProcesses.IsRunning
                     ? "Unity online. Bridge disconnected"
                     : "Disconnected",
-            dashboard.UnityConnected && dashboard.MainThreadResponsive
+            crashedRecently
+                ? OfflineBrush
+                : dashboard.UnityConnected && dashboard.MainThreadResponsive
                 ? HealthyBrush
                 : _unityProcesses.IsRunning
                     ? WaitingBrush
@@ -366,8 +404,9 @@ internal sealed class MainWindow : Window
         _startDaemonButton.Content = dashboard.DaemonConnected ? "Daemon running" : "Start daemon";
         _projectPath.Text = dashboard.ProjectPath ?? "—";
         _unityVersion.Text = dashboard.UnityVersion ?? "—";
-        _editorState.Text = dashboard.EditorState;
+        _editorState.Text = crashedRecently ? "Crashed" : dashboard.EditorState;
         _unityProcess.Text = FormatUnityProcesses(_unityProcesses);
+        RenderCrashReport(crashedRecently ? dashboard.CrashReport : null);
         _connectedAt.Text = FormatTimestamp(dashboard.ConnectedAtUtc);
         _consoleState.Text = dashboard.UnityConnected
             ? $"{dashboard.ErrorCount} errors, {dashboard.WarningCount} warnings"
@@ -392,7 +431,11 @@ internal sealed class MainWindow : Window
             RenderLatestRun(dashboard.LatestRun);
         }
 
-        if (dashboard.PossibleModalDialog)
+        if (crashedRecently)
+        {
+            ShowAlert("Unity appears to have crashed recently. Inspect the crash log for the full report.");
+        }
+        else if (dashboard.PossibleModalDialog)
         {
             ShowAlert("Unity's main thread is not responding. Focus Unity and check for a popup or modal dialog.");
         }
@@ -507,6 +550,67 @@ internal sealed class MainWindow : Window
             : string.Join(Environment.NewLine, run.FailedTestNames);
     }
 
+    private void RenderCrashReport(UnityCrashReportInfo? report)
+    {
+        if (report is null)
+        {
+            _crashSummary.Text = string.Empty;
+            _crashSummary.Foreground = Brushes.White;
+            _crashReportRow.IsVisible = false;
+            _crashActions.IsVisible = false;
+            _inspectCrashButton.IsVisible = false;
+            _discardCrashButton.IsVisible = false;
+            _inspectCrashButton.Tag = null;
+            return;
+        }
+
+        _crashSummary.Text = $"Detected {FormatCrashAge(report)}{Environment.NewLine}{report.Summary}";
+        _crashSummary.Foreground = OfflineBrush;
+        _crashReportRow.IsVisible = true;
+        _crashActions.IsVisible = true;
+        _inspectCrashButton.Tag = report.LogPath;
+        _inspectCrashButton.IsVisible = true;
+        _discardCrashButton.IsVisible = true;
+    }
+
+    private void OpenCrashLog()
+    {
+        if (_inspectCrashButton.Tag is not string path || string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(path)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or FileNotFoundException)
+        {
+            ShowAlert("Could not open the crash log: " + exception.Message);
+        }
+    }
+
+    private async Task DiscardCrashAsync()
+    {
+        _discardCrashButton.IsEnabled = false;
+        bool daemonDiscarded = !_dashboard.DaemonConnected ||
+                               await _client.DiscardCrashAsync(_lifetime.Token);
+
+        _unityCrashDetector.Discard();
+        _dashboard = _dashboard.WithoutCrashReport();
+        RenderDashboard(_dashboard);
+
+        if (!daemonDiscarded)
+        {
+            ShowAlert("The local crash state was discarded, but the daemon could not be reached to reset its state.");
+        }
+
+        _discardCrashButton.IsEnabled = true;
+    }
+
     private void UpdateTestElapsed()
     {
         _testElapsed.Text = _testStartedAt is null
@@ -614,6 +718,13 @@ internal sealed class MainWindow : Window
         return DateTimeOffset.TryParse(raw, out DateTimeOffset timestamp)
             ? timestamp.ToLocalTime().ToString("g")
             : "—";
+    }
+
+    private static string FormatCrashAge(UnityCrashReportInfo report)
+    {
+        return DateTimeOffset.TryParse(report.DetectedAtUtc, out DateTimeOffset detectedAt)
+            ? UnityCrashTimeFormatter.FormatAge(detectedAt, DateTimeOffset.UtcNow)
+            : "recently";
     }
 
     private static string FormatDirtyScenes(IReadOnlyList<DirtySceneInfo> scenes)
