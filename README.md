@@ -31,9 +31,12 @@ When Unity is running but the editor bridge has not connected yet, the desktop a
 GET  /unity/processes
 GET  /unity/projects
 POST /unity/activate-bridge?projectPath=<path>
+GET  /api-calls?limit=100
 ```
 
 `/health` also includes `editorState` and `unityProcess`, so agents can distinguish "Unity is not running" from "Unity is loading or the bridge is not active." Bridge activation starts or focuses the selected Unity Hub project and asks the Unity-side connector to enable itself through its command-line entry point.
+
+The daemon keeps the latest 250 completed API calls in memory. The desktop dashboard displays the newest calls live beside Unity diagnostics, including method, path, HTTP status, and duration. Reading `/api-calls` is intentionally excluded from the history so the dashboard does not log its own history polling.
 
 ## Releases
 

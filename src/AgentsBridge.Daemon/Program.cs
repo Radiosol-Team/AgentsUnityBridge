@@ -8,8 +8,10 @@ builder.Services.AddSingleton<UnityProcessMonitor>();
 builder.Services.AddSingleton<UnityCrashDetector>();
 builder.Services.AddSingleton<UnityHubProjectDiscovery>();
 builder.Services.AddSingleton<UnityEditorLauncher>();
+builder.Services.AddSingleton<ApiCallLog>();
 
 WebApplication app = builder.Build();
+app.UseMiddleware<ApiCallLoggingMiddleware>();
 app.UseWebSockets(new WebSocketOptions
 {
     KeepAliveInterval = TimeSpan.FromSeconds(15)

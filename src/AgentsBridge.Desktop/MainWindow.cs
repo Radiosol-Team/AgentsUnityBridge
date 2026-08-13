@@ -48,6 +48,7 @@ internal sealed class MainWindow : Window
     private readonly TextBlock _alertText = ValueText();
     private readonly Border _alert = new() { IsVisible = false };
     private readonly StackPanel _projectsPanel = new() { Spacing = 10 };
+    private readonly StackPanel _apiCallsPanel = new() { Spacing = 8 };
     private readonly Button _startDaemonButton = ActionButton("Start daemon");
     private readonly Button _forceBridgeButton = ActionButton("Force activate bridge");
     private readonly Button _runTestsButton = ActionButton("Run EditMode tests");
@@ -267,6 +268,22 @@ internal sealed class MainWindow : Window
             DetailRow("Console", _consoleState),
             DetailRow("Dirty scenes", _dirtyScenes));
 
+        Border apiCalls = Card(
+            "API calls",
+            new ScrollViewer
+            {
+                MinHeight = 190,
+                MaxHeight = 260,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                Content = _apiCallsPanel
+            });
+        Grid diagnostics = new()
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,16,*"),
+            Children = { editorDetails, apiCalls }
+        };
+        Grid.SetColumn(apiCalls, 2);
+
         StackPanel testButtons = new()
         {
             Orientation = Orientation.Horizontal,
@@ -308,7 +325,7 @@ internal sealed class MainWindow : Window
             {
                 Margin = new Thickness(28),
                 Spacing = 20,
-                Children = { header, states, _alert, editorDetails, tests, projects }
+                Children = { header, states, _alert, diagnostics, tests, projects }
             }
         };
     }
@@ -415,7 +432,9 @@ internal sealed class MainWindow : Window
         _refreshing = true;
         try
         {
+            Task<IReadOnlyList<ApiCallEntry>> apiCallsTask = _client.ReadApiCallsAsync(100, _lifetime.Token);
             _dashboard = await _client.ReadAsync(_lifetime.Token);
+            IReadOnlyList<ApiCallEntry> apiCalls = await apiCallsTask;
             _unityProcesses = _unityProcessMonitor.Read();
             UnityCrashReport? localCrashReport = _unityCrashDetector.Read(_unityProcesses, DateTimeOffset.UtcNow);
             if (_dashboard.CrashReport is null && localCrashReport is not null)
@@ -437,6 +456,7 @@ internal sealed class MainWindow : Window
             }
 
             RenderDashboard(_dashboard);
+            RenderApiCalls(apiCalls);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
@@ -445,6 +465,48 @@ internal sealed class MainWindow : Window
         finally
         {
             _refreshing = false;
+        }
+    }
+
+    private void RenderApiCalls(IReadOnlyList<ApiCallEntry> calls)
+    {
+        _apiCallsPanel.Children.Clear();
+        if (calls.Count == 0)
+        {
+            _apiCallsPanel.Children.Add(new TextBlock
+            {
+                Text = _dashboard.DaemonConnected ? "No API calls recorded yet." : "Daemon is offline.",
+                Foreground = SecondaryBrush
+            });
+            return;
+        }
+
+        foreach (ApiCallEntry call in calls)
+        {
+            bool succeeded = call.StatusCode is >= 200 and < 400;
+            TextBlock request = new()
+            {
+                Text = $"{FormatCallTime(call.TimestampUtc)}  {call.Method} {call.Path}",
+                Foreground = Brushes.White,
+                FontWeight = FontWeight.SemiBold,
+                TextWrapping = TextWrapping.Wrap
+            };
+            TextBlock result = new()
+            {
+                Text = $"HTTP {call.StatusCode}  ·  {call.DurationMilliseconds} ms",
+                Foreground = succeeded ? HealthyBrush : OfflineBrush
+            };
+            _apiCallsPanel.Children.Add(new Border
+            {
+                CornerRadius = new CornerRadius(7),
+                Background = new SolidColorBrush(Color.Parse("#222A36")),
+                Padding = new Thickness(12, 9),
+                Child = new StackPanel
+                {
+                    Spacing = 3,
+                    Children = { request, result }
+                }
+            });
         }
     }
 
@@ -792,6 +854,13 @@ internal sealed class MainWindow : Window
         return DateTimeOffset.TryParse(raw, out DateTimeOffset timestamp)
             ? timestamp.ToLocalTime().ToString("g")
             : "—";
+    }
+
+    private static string FormatCallTime(DateTimeOffset timestamp)
+    {
+        return timestamp == DateTimeOffset.MinValue
+            ? "--:--:--"
+            : timestamp.ToLocalTime().ToString("HH:mm:ss");
     }
 
     private static string FormatCrashAge(UnityCrashReportInfo report)

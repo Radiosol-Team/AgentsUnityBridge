@@ -29,6 +29,7 @@ public static class BridgeEndpoints
         app.MapGet("/unity/projects", UnityProjects);
         app.MapPost("/unity/activate-bridge", ActivateUnityBridge);
         app.MapPost("/unity/crash/discard", DiscardUnityCrash);
+        app.MapGet("/api-calls", ApiCalls);
 
         app.Map(BridgeProtocol.UnitySocketPath, AcceptUnityAsync);
 
@@ -59,8 +60,21 @@ public static class BridgeEndpoints
                 "GET /unity/projects",
                 "POST /unity/activate-bridge?projectPath=<path>",
                 "POST /unity/crash/discard",
+                "GET /api-calls?limit=100",
                 "GET /ping or /health"
             }
+        });
+    }
+
+    private static IResult ApiCalls(HttpRequest request, ApiCallLog callLog)
+    {
+        int limit = int.TryParse(request.Query["limit"], out int requestedLimit)
+            ? Math.Clamp(requestedLimit, 1, ApiCallLog.DefaultCapacity)
+            : 100;
+        return BridgeJson.Json(StatusCodes.Status200OK, new
+        {
+            ok = true,
+            calls = callLog.ReadLatest(limit)
         });
     }
 
