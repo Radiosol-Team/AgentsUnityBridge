@@ -36,6 +36,9 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
 
+    env:
+      RELEASE_VERSION: 0.2.${{ github.run_number }}.${{ github.run_attempt }}
+
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -59,12 +62,14 @@ jobs:
             --configuration Release `
             --runtime "${{ matrix.rid }}" `
             --self-contained true `
+            -p:Version="$env:RELEASE_VERSION" `
             --output $package
 
           dotnet publish src/AgentsBridge.Daemon/AgentsBridge.Daemon.csproj `
             --configuration Release `
             --runtime "${{ matrix.rid }}" `
             --self-contained true `
+            -p:Version="$env:RELEASE_VERSION" `
             --output $daemon
 
           Copy-Item README.md $package
@@ -73,11 +78,29 @@ jobs:
             -Path "$package/*" `
             -DestinationPath "$artifacts/AgentsBridge-${{ matrix.rid }}.zip"
 
+          if ("${{ matrix.rid }}" -eq "win-x64") {
+            $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+            if (-not (Test-Path $iscc)) {
+              choco install innosetup --version=6.7.1 -y --no-progress
+            }
+
+            & $iscc `
+              "/DAppVersion=$env:RELEASE_VERSION" `
+              "/DSourceDir=$package" `
+              "installer/AgentsBridge.iss"
+
+            $setup = Join-Path $artifacts "AgentsBridge-win-x64-setup.exe"
+            $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+            Set-Content -NoNewline `
+              -Path "$setup.sha256" `
+              -Value "$hash  AgentsBridge-win-x64-setup.exe"
+          }
+
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
           name: AgentsBridge-${{ matrix.rid }}
-          path: artifacts/AgentsBridge-${{ matrix.rid }}.zip
+          path: artifacts/*
           if-no-files-found: error
 
   release:
@@ -95,9 +118,9 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: v0.1.${{ github.run_number }}.${{ github.run_attempt }}
+          RELEASE_TAG: v0.2.${{ github.run_number }}.${{ github.run_attempt }}
         run: |
-          gh release create "$RELEASE_TAG" artifacts/*.zip \
+          gh release create "$RELEASE_TAG" artifacts/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "AgentsBridge $RELEASE_TAG" \

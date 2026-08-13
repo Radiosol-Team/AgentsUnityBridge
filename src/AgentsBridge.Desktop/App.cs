@@ -15,7 +15,13 @@ internal sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow(new BridgeStatusClient());
+            bool startDaemon = desktop.Args?.Contains(
+                "--start-daemon",
+                StringComparer.OrdinalIgnoreCase) == true;
+            desktop.MainWindow = new MainWindow(
+                new BridgeStatusClient(),
+                new ReleaseUpdater(),
+                startDaemon);
         }
 
         base.OnFrameworkInitializationCompleted();
