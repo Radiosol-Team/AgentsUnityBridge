@@ -6,6 +6,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using AgentsBridge.Local;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace AgentsBridge.Desktop;
 
@@ -19,6 +20,8 @@ internal sealed class MainWindow : Window
     private static readonly IBrush WarningCardBrush = new SolidColorBrush(Color.Parse("#3A2C16"));
 
     private readonly BridgeStatusClient _client;
+    private readonly ReleaseUpdater _releaseUpdater;
+    private readonly bool _startDaemonOnOpen;
     private readonly DaemonProcessLauncher _daemonLauncher = new();
     private readonly UnityHubProjectDiscovery _projectDiscovery = new();
     private readonly UnityEditorLauncher _unityLauncher = new();
@@ -61,11 +64,17 @@ internal sealed class MainWindow : Window
     private bool _statusLoaded;
     private bool _testRequestActive;
     private bool _awaitingSceneDecision;
+    private bool _updateCheckStarted;
     private DateTimeOffset? _testStartedAt;
 
-    public MainWindow(BridgeStatusClient client)
+    public MainWindow(
+        BridgeStatusClient client,
+        ReleaseUpdater releaseUpdater,
+        bool startDaemonOnOpen = false)
     {
         _client = client;
+        _releaseUpdater = releaseUpdater;
+        _startDaemonOnOpen = startDaemonOnOpen;
         Title = "AgentsBridge";
         Icon = new WindowIcon(AssetLoader.Open(new Uri(
             "avares://AgentsBridge.Desktop/Assets/agentsbridge-logo.ico")));
@@ -95,6 +104,12 @@ internal sealed class MainWindow : Window
             RefreshProjects();
             _timer.Start();
             await RefreshAsync();
+            if (_startDaemonOnOpen && !_dashboard.DaemonConnected)
+            {
+                await StartDaemonAsync();
+            }
+
+            await CheckForUpdatesAsync();
         };
         Closed += (_, _) =>
         {
@@ -102,7 +117,63 @@ internal sealed class MainWindow : Window
             _lifetime.Cancel();
             _lifetime.Dispose();
             _client.Dispose();
+            _releaseUpdater.Dispose();
         };
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        if (_updateCheckStarted)
+        {
+            return;
+        }
+
+        _updateCheckStarted = true;
+        AvailableRelease? release;
+        try
+        {
+            release = await _releaseUpdater.CheckAsync(_lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or JsonException)
+        {
+            // Update checks are opportunistic. A network or API failure should not interrupt normal use.
+            return;
+        }
+
+        if (release is null)
+        {
+            return;
+        }
+
+        try
+        {
+            bool install = await new UpdatePromptWindow(release).ShowDialog<bool>(this);
+            if (!install)
+            {
+                return;
+            }
+
+            _summary.Text = $"Downloading {release.DisplayName}...";
+            await _releaseUpdater.InstallAsync(release, _lifetime.Token);
+            _summary.Text = "The update is installing. AgentsBridge will close now.";
+            if (Application.Current?.ApplicationLifetime is
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                desktop.Shutdown();
+            }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            // Window shutdown cancels a pending release check or download.
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidOperationException)
+        {
+            ShowAlert("AgentsBridge could not install the update: " + exception.Message);
+        }
     }
 
     private void WireActions()
