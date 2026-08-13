@@ -107,6 +107,42 @@ internal sealed class BridgeStatusClient : IDisposable
         }
     }
 
+    internal async Task<IReadOnlyList<ApiCallEntry>> ReadApiCallsAsync(
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            JsonElement root = await GetJsonAsync(
+                "/api-calls?limit=" + Math.Clamp(limit, 1, 250),
+                TimeSpan.FromSeconds(3),
+                cancellationToken);
+            return ParseApiCalls(root);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            return [];
+        }
+    }
+
+    internal static IReadOnlyList<ApiCallEntry> ParseApiCalls(JsonElement root)
+    {
+        if (!root.TryGetProperty("calls", out JsonElement calls) ||
+            calls.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return calls.EnumerateArray()
+            .Select(call => new ApiCallEntry(
+                ReadDateTimeOffset(call, "timestampUtc"),
+                ReadString(call, "method") ?? "?",
+                ReadString(call, "path") ?? "/",
+                ReadInt32(call, "statusCode"),
+                ReadInt64(call, "durationMilliseconds")))
+            .ToArray();
+    }
+
     internal async Task<bool> DiscardCrashAsync(CancellationToken cancellationToken)
     {
         try
@@ -266,6 +302,22 @@ internal sealed class BridgeStatusClient : IDisposable
             : 0;
     }
 
+    private static long ReadInt64(JsonElement element, string propertyName)
+    {
+        return element.ValueKind == JsonValueKind.Object &&
+               element.TryGetProperty(propertyName, out JsonElement value) &&
+               value.TryGetInt64(out long result)
+            ? result
+            : 0;
+    }
+
+    private static DateTimeOffset ReadDateTimeOffset(JsonElement element, string propertyName)
+    {
+        return DateTimeOffset.TryParse(ReadString(element, propertyName), out DateTimeOffset result)
+            ? result
+            : DateTimeOffset.MinValue;
+    }
+
     private static string? ReadString(JsonElement element, string propertyName)
     {
         return element.ValueKind == JsonValueKind.Object &&
@@ -320,6 +372,13 @@ internal sealed record BridgeDashboard(
 }
 
 internal sealed record DirtySceneInfo(string Name, string? Path);
+
+internal sealed record ApiCallEntry(
+    DateTimeOffset TimestampUtc,
+    string Method,
+    string Path,
+    int StatusCode,
+    long DurationMilliseconds);
 
 internal sealed record UnityCrashReportInfo(
     string LogPath,
