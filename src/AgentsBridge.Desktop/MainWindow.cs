@@ -48,7 +48,7 @@ internal sealed class MainWindow : Window
     private readonly TextBlock _alertText = ValueText();
     private readonly Border _alert = new() { IsVisible = false };
     private readonly StackPanel _projectsPanel = new() { Spacing = 10 };
-    private readonly StackPanel _apiCallsPanel = new() { Spacing = 8 };
+    private readonly StackPanel _apiCallsPanel = new() { Spacing = 2 };
     private readonly Button _startDaemonButton = ActionButton("Start daemon");
     private readonly Button _forceBridgeButton = ActionButton("Force activate bridge");
     private readonly Button _runTestsButton = ActionButton("Run EditMode tests");
@@ -269,7 +269,7 @@ internal sealed class MainWindow : Window
             DetailRow("Dirty scenes", _dirtyScenes));
 
         Border apiCalls = Card(
-            "API calls",
+            "API activity",
             new ScrollViewer
             {
                 MinHeight = 190,
@@ -481,32 +481,81 @@ internal sealed class MainWindow : Window
             return;
         }
 
-        foreach (ApiCallEntry call in calls)
+        foreach (ApiCallGroup group in GroupApiCalls(calls))
         {
+            ApiCallEntry call = group.Latest;
             bool succeeded = call.StatusCode is >= 200 and < 400;
             TextBlock request = new()
             {
-                Text = $"{FormatCallTime(call.TimestampUtc)}  {call.Method} {call.Path}",
-                Foreground = Brushes.White,
-                FontWeight = FontWeight.SemiBold,
+                Text = $"[{FormatCallTime(call.TimestampUtc)}] {call.Method,-4} {call.Path}  {call.StatusCode,3} {call.DurationMilliseconds,4}ms  {call.Caller}" +
+                       (group.Count > 1 ? $"  x{group.Count} ({FormatCallTime(group.Oldest.TimestampUtc)}-{FormatCallTime(call.TimestampUtc)})" : string.Empty),
+                Foreground = succeeded ? Brushes.White : OfflineBrush,
+                FontFamily = new FontFamily("Cascadia Mono, Consolas, monospace"),
+                FontSize = 12,
                 TextWrapping = TextWrapping.Wrap
             };
             TextBlock result = new()
             {
                 Text = $"HTTP {call.StatusCode}  ·  {call.DurationMilliseconds} ms",
-                Foreground = succeeded ? HealthyBrush : OfflineBrush
+                Foreground = succeeded ? HealthyBrush : OfflineBrush,
+                IsVisible = false
             };
             _apiCallsPanel.Children.Add(new Border
             {
-                CornerRadius = new CornerRadius(7),
-                Background = new SolidColorBrush(Color.Parse("#222A36")),
-                Padding = new Thickness(12, 9),
+                Background = new SolidColorBrush(Color.Parse("#151B24")),
+                Padding = new Thickness(8, 5),
                 Child = new StackPanel
                 {
                     Spacing = 3,
                     Children = { request, result }
                 }
             });
+        }
+    }
+
+    internal static IReadOnlyList<ApiCallGroup> GroupApiCalls(IReadOnlyList<ApiCallEntry> calls)
+    {
+        List<ApiCallGroup> groups = [];
+        foreach (ApiCallEntry call in calls.Reverse())
+        {
+            ApiCallGroup? previous = groups.LastOrDefault();
+            if (previous is not null && previous.CanAppend(call))
+            {
+                previous.Append(call);
+            }
+            else
+            {
+                groups.Add(new ApiCallGroup(call));
+            }
+        }
+
+        groups.Reverse();
+        return groups;
+    }
+
+    internal sealed class ApiCallGroup
+    {
+        public ApiCallGroup(ApiCallEntry call)
+        {
+            Oldest = call;
+            Latest = call;
+            Count = 1;
+        }
+
+        public ApiCallEntry Oldest { get; }
+        public ApiCallEntry Latest { get; private set; }
+        public int Count { get; private set; }
+
+        public bool CanAppend(ApiCallEntry call) =>
+            string.Equals(Latest.Method, call.Method, StringComparison.Ordinal) &&
+            string.Equals(Latest.Path, call.Path, StringComparison.Ordinal) &&
+            Latest.StatusCode == call.StatusCode &&
+            string.Equals(Latest.Caller, call.Caller, StringComparison.Ordinal);
+
+        public void Append(ApiCallEntry call)
+        {
+            Latest = call;
+            Count++;
         }
     }
 

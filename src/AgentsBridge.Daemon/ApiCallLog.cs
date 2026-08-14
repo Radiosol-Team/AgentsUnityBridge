@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using AgentsBridge.Local;
 
 namespace AgentsBridge.Daemon;
 
@@ -48,13 +49,14 @@ public sealed record ApiCallLogEntry(
     string Method,
     string Path,
     int StatusCode,
-    long DurationMilliseconds);
+    long DurationMilliseconds,
+    string Caller);
 
 public sealed class ApiCallLoggingMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context, ApiCallLog callLog)
     {
-        if (context.Request.Path.Equals("/api-calls", StringComparison.OrdinalIgnoreCase))
+        if (ShouldExcludeFromHistory(context))
         {
             await next(context);
             return;
@@ -80,7 +82,52 @@ public sealed class ApiCallLoggingMiddleware(RequestDelegate next)
                 context.Request.Method,
                 context.Request.Path + context.Request.QueryString,
                 failedStatusCode ?? context.Response.StatusCode,
-                stopwatch.ElapsedMilliseconds));
+                stopwatch.ElapsedMilliseconds,
+                DescribeCaller(context)));
         }
+    }
+
+    private static bool ShouldExcludeFromHistory(HttpContext context)
+    {
+        if (context.Request.Path.Equals("/api-calls", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!HttpMethods.IsGet(context.Request.Method) ||
+            !context.Request.Path.Equals("/health", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string caller = DescribeCaller(context);
+        return string.Equals(caller, ApiCallerIdentity.DesktopDashboard, StringComparison.Ordinal) ||
+               string.Equals(caller, "AgentsBridge.Daemon", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(caller, "AgentsBridge.Desktop", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string DescribeCaller(HttpContext context)
+    {
+        string declaredCaller = context.Request.Headers[ApiCallerIdentity.HeaderName].ToString();
+        if (!string.IsNullOrWhiteSpace(declaredCaller))
+        {
+            return declaredCaller;
+        }
+
+        string? processName = LoopbackCallerResolver.TryResolve(
+            context.Connection.LocalPort,
+            context.Connection.RemotePort);
+        if (!string.IsNullOrWhiteSpace(processName))
+        {
+            return processName;
+        }
+
+        string userAgent = context.Request.Headers.UserAgent.ToString();
+        if (!string.IsNullOrWhiteSpace(userAgent))
+        {
+            return userAgent.Length <= 64 ? userAgent : userAgent[..61] + "...";
+        }
+
+        return "loopback client";
     }
 }
