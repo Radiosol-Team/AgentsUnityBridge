@@ -1,4 +1,5 @@
 using AgentsBridge.Daemon;
+using AgentsBridge.Local;
 using Microsoft.AspNetCore.Http;
 using Xunit;
 
@@ -42,6 +43,7 @@ public sealed class ApiCallLogTests
         Assert.Equal("POST", call.Method);
         Assert.Equal("/unity/activate-bridge?projectName=radiosol", call.Path);
         Assert.Equal(StatusCodes.Status202Accepted, call.StatusCode);
+        Assert.Equal("loopback client", call.Caller);
         Assert.True(call.DurationMilliseconds >= 0);
     }
 
@@ -51,6 +53,21 @@ public sealed class ApiCallLogTests
         ApiCallLog log = new();
         DefaultHttpContext context = new();
         context.Request.Path = "/api-calls";
+        ApiCallLoggingMiddleware middleware = new(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(context, log);
+
+        Assert.Empty(log.ReadLatest(10));
+    }
+
+    [Fact]
+    public async Task Middleware_DoesNotRecordDashboardHealthChecks()
+    {
+        ApiCallLog log = new();
+        DefaultHttpContext context = new();
+        context.Request.Method = "GET";
+        context.Request.Path = "/health";
+        context.Request.Headers[ApiCallerIdentity.HeaderName] = ApiCallerIdentity.DesktopDashboard;
         ApiCallLoggingMiddleware middleware = new(_ => Task.CompletedTask);
 
         await middleware.InvokeAsync(context, log);
@@ -72,5 +89,5 @@ public sealed class ApiCallLogTests
     }
 
     private static ApiCallLogEntry Entry(string path) =>
-        new(DateTimeOffset.UtcNow, "GET", path, StatusCodes.Status200OK, 1);
+        new(DateTimeOffset.UtcNow, "GET", path, StatusCodes.Status200OK, 1, "test");
 }

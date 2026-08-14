@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using AgentsBridge.Local;
 
 namespace AgentsBridge.Desktop;
 
@@ -10,6 +11,13 @@ internal sealed class BridgeStatusClient : IDisposable
         BaseAddress = new Uri("http://127.0.0.1:9876"),
         Timeout = Timeout.InfiniteTimeSpan
     };
+
+    public BridgeStatusClient()
+    {
+        _client.DefaultRequestHeaders.TryAddWithoutValidation(
+            ApiCallerIdentity.HeaderName,
+            ApiCallerIdentity.DesktopDashboard);
+    }
 
     internal async Task<BridgeDashboard> ReadAsync(CancellationToken cancellationToken)
     {
@@ -139,7 +147,8 @@ internal sealed class BridgeStatusClient : IDisposable
                 ReadString(call, "method") ?? "?",
                 ReadString(call, "path") ?? "/",
                 ReadInt32(call, "statusCode"),
-                ReadInt64(call, "durationMilliseconds")))
+                ReadInt64(call, "durationMilliseconds"),
+                ReadString(call, "caller") ?? "legacy daemon"))
             .ToArray();
     }
 
@@ -378,7 +387,8 @@ internal sealed record ApiCallEntry(
     string Method,
     string Path,
     int StatusCode,
-    long DurationMilliseconds);
+    long DurationMilliseconds,
+    string Caller);
 
 internal sealed record UnityCrashReportInfo(
     string LogPath,
