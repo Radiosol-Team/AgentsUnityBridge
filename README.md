@@ -2,6 +2,10 @@
 
 AgentsBridge keeps an agent-facing API available while Unity reloads, freezes, or exits. A standalone daemon owns the stable HTTP endpoint; a small Unity editor connector executes the commands that require Unity APIs.
 
+## For coding agents
+
+Read [the complete agent guide](docs/agents/README.md) before using the bridge or changing a Unity project that integrates it. The guide defines the normal edit/compile/error/test loop, every public endpoint, dirty-scene safety, recovery procedures, and practical usage patterns.
+
 ## Architecture
 
 - `AgentsBridge.Daemon` listens on `http://127.0.0.1:9876` and owns the public API.
