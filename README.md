@@ -2,6 +2,10 @@
 
 AgentsBridge keeps an agent-facing API available while Unity reloads, freezes, or exits. A standalone daemon owns the stable HTTP endpoint; a small Unity editor connector executes the commands that require Unity APIs.
 
+## For coding agents
+
+Read [the complete agent guide](docs/agents/README.md) before using the bridge or changing a Unity project that integrates it. The guide defines the normal edit/compile/error/test loop, every public endpoint, dirty-scene safety, recovery procedures, and practical usage patterns.
+
 ## Architecture
 
 - `AgentsBridge.Daemon` listens on `http://127.0.0.1:9876` and owns the public API.
@@ -36,7 +40,7 @@ GET  /api-calls?limit=100
 
 `/health` also includes `editorState` and `unityProcess`, so agents can distinguish "Unity is not running" from "Unity is loading or the bridge is not active." Bridge activation starts or focuses the selected Unity Hub project and asks the Unity-side connector to enable itself through its command-line entry point.
 
-The daemon keeps the latest 250 completed API calls in memory. The desktop dashboard displays the newest calls live beside Unity diagnostics, including method, path, HTTP status, and duration. Reading `/api-calls` is intentionally excluded from the history so the dashboard does not log its own history polling.
+The daemon keeps the latest 250 completed API calls in memory. The desktop dashboard displays the newest calls live beside Unity diagnostics as compact terminal-style rows: timestamp, method, path, HTTP status, duration, and a brief caller label. Consecutive matching calls are stacked with a count and time range. On Windows, the daemon resolves a loopback caller to its process name when the request has no explicit caller identity, and labels shell children of Codex as `PowerShell (Codex)`. Reading `/api-calls` and routine dashboard `GET /health` checks are intentionally excluded from the history, so UI polling does not obscure agent activity.
 
 ## Releases
 
