@@ -3,13 +3,13 @@ name: CI
 on:
   pull_request:
     branches:
-      - nightly
       - main
+      - release
   push:
     branches:
-      - nightly
       - main
-      
+      - release
+
   workflow_dispatch:
 
 env:
