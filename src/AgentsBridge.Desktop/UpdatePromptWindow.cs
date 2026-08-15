@@ -9,7 +9,7 @@ internal sealed class UpdatePromptWindow : Window
 {
     internal UpdatePromptWindow(AvailableRelease release)
     {
-        Title = "AgentsBridge update";
+        Title = "Unity Agents Bridge update";
         Width = 520;
         Height = 330;
         MinWidth = 420;
@@ -45,7 +45,7 @@ internal sealed class UpdatePromptWindow : Window
                 },
                 new TextBlock
                 {
-                    Text = "AgentsBridge can download and install this update now. After you approve, no further action is needed.",
+                    Text = "Unity Agents Bridge can download and install this update now. After you approve, no further action is needed.",
                     TextWrapping = TextWrapping.Wrap
                 },
                 new ScrollViewer

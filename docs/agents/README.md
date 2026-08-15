@@ -8,7 +8,7 @@ Use the bridge whenever an already-open Unity editor can answer a question or va
 
 AgentsUnityBridge has two cooperating parts:
 
-1. The standalone **AgentsBridge daemon** owns the stable loopback HTTP API at `http://127.0.0.1:9876/` (equivalent to `http://localhost:9876/`). It remains reachable while Unity reloads assemblies, freezes, exits, or crashes.
+1. The standalone **Unity Agents Bridge daemon** owns the stable loopback HTTP API at `http://127.0.0.1:9876/` (equivalent to `http://localhost:9876/`). It remains reachable while Unity reloads assemblies, freezes, exits, or crashes.
 2. An **editor-only Unity connector** opens an outbound WebSocket to the daemon at `/v1/unity/connect`. It runs commands that require Unity APIs and reconnects after assembly reloads.
 
 The daemon is the endpoint agents call. Do not try to call the Unity connector directly. Only loopback connections are accepted; this is a local development tool, not a remote service or a Player runtime feature.
@@ -46,7 +46,7 @@ Interpret the important fields as follows:
 
 | Observation | Meaning | Agent action |
 |---|---|---|
-| Request cannot connect | The daemon is not running or port `9876` is unavailable. | Start/open AgentsBridge, or ask the user to do so. Do not silently skip intended Unity validation. |
+| Request cannot connect | The daemon is not running or port `9876` is unavailable. | Start/open Unity Agents Bridge, or ask the user to do so. Do not silently skip intended Unity validation. |
 | `daemonResponsive: true`, `unityConnected: false`, `editorState: offline` | The daemon works and Unity is not running. | Open/activate the correct Unity project if allowed, otherwise ask the user. |
 | `unityConnected: false`, `editorState: loading` | A Unity process exists, but it is still starting or its connector is not enabled/connected. | Wait and retry; if persistent, enable/activate the bridge for that project. |
 | `unityConnected: true`, `mainThreadResponsive: true` | The editor connector and Unity main thread are usable. | Continue with status, refresh, errors, or tests. |
@@ -181,7 +181,7 @@ The Unity connector is opt-in per OS user and project. A project may expose an o
 ### Daemon unreachable
 
 - Confirm `http://localhost:9876/health` rather than assuming Unity itself is the problem.
-- Start the installed AgentsBridge desktop/daemon if this is within task authority; otherwise ask the user.
+- Start the installed Unity Agents Bridge desktop/daemon if this is within task authority; otherwise ask the user.
 - Do not launch a second Unity editor as a silent substitute.
 
 ### Daemon works, Unity disconnected
