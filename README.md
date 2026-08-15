@@ -1,6 +1,6 @@
-# AgentsBridge
+# Unity Agents Bridge
 
-AgentsBridge keeps an agent-facing API available while Unity reloads, freezes, or exits. A standalone daemon owns the stable HTTP endpoint; a small Unity editor connector executes the commands that require Unity APIs.
+Unity Agents Bridge keeps an agent-facing API available while Unity reloads, freezes, or exits. A standalone daemon owns the stable HTTP endpoint; a small Unity editor connector executes the commands that require Unity APIs.
 
 ## For coding agents
 
@@ -44,8 +44,8 @@ The daemon keeps the latest 250 completed API calls in memory. The desktop dashb
 
 ## Releases
 
-Every push to `main` runs formatting, build, and test validation, creates self-contained packages for Windows, Linux, and Intel/Apple Silicon macOS, and publishes them in a generated GitHub release. The workflow requires the repository's Actions setting to allow `GITHUB_TOKEN` write access to repository contents.
+Pushes to `main` and `Release` run formatting, build, and test validation. Pushes to `Release` also create self-contained packages for Windows, Linux, and Intel/Apple Silicon macOS and publish them in a generated GitHub release. The release workflow requires the repository's Actions setting to allow `GITHUB_TOKEN` write access to repository contents.
 
-Windows users can download `AgentsBridge-win-x64-setup.exe` from the latest release. The per-user installer does not require administrator access, adds AgentsBridge to the Start menu, offers a desktop shortcut, registers a standard Windows uninstaller, and launches the daemon when installation finishes.
+Windows users can download `AgentsBridge-win-x64-setup.exe` from the latest release. The per-user installer does not require administrator access, adds Unity Agents Bridge to the Start menu, offers a desktop shortcut, registers a standard Windows uninstaller, and launches the daemon when installation finishes.
 
-The Windows desktop app checks GitHub's latest release when it starts. If a newer installer is available, it shows the release notes and asks once whether to install it. On approval, AgentsBridge downloads the installer and its published SHA-256 checksum, verifies the download, and runs the update silently; there are no further installer prompts.
+The Windows desktop app checks GitHub's latest release when it starts. If a newer installer is available, it shows the release notes and asks once whether to install it. On approval, Unity Agents Bridge downloads the installer and its published SHA-256 checksum, verifies the download, and runs the update silently; there are no further installer prompts.

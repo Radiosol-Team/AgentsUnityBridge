@@ -7,19 +7,19 @@
 
 [Setup]
 AppId={{AA856F53-06DD-489D-9817-4584291BD80B}
-AppName=AgentsBridge
+AppName=Unity Agents Bridge
 AppVersion={#AppVersion}
 AppPublisher=Radiosol Team
 AppPublisherURL=https://github.com/Radiosol-Team/AgentsUnityBridge
 AppSupportURL=https://github.com/Radiosol-Team/AgentsUnityBridge/issues
 AppUpdatesURL=https://github.com/Radiosol-Team/AgentsUnityBridge/releases
 DefaultDirName={localappdata}\Programs\AgentsBridge
-DefaultGroupName=AgentsBridge
+DefaultGroupName=Unity Agents Bridge
 DisableProgramGroupPage=yes
 OutputDir=..\artifacts
 OutputBaseFilename=AgentsBridge-win-x64-setup
 SetupIconFile=..\src\AgentsBridge.Desktop\Assets\agentsbridge-logo.ico
-UninstallDisplayIcon={app}\AgentsBridge.Desktop.exe
+UninstallDisplayIcon={app}\Unity Agents Bridge.exe
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -36,9 +36,17 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+; Remove artifacts from installations that used the pre-rename desktop executable
+; and shortcut names. Keep AppId unchanged so this remains an in-place upgrade.
+Type: files; Name: "{app}\AgentsBridge.Desktop.exe"
+Type: files; Name: "{userprograms}\AgentsBridge\AgentsBridge.lnk"
+Type: dirifempty; Name: "{userprograms}\AgentsBridge"
+Type: files; Name: "{autodesktop}\AgentsBridge.lnk"
+
 [Icons]
-Name: "{group}\AgentsBridge"; Filename: "{app}\AgentsBridge.Desktop.exe"
-Name: "{autodesktop}\AgentsBridge"; Filename: "{app}\AgentsBridge.Desktop.exe"; Tasks: desktopicon
+Name: "{group}\Unity Agents Bridge"; Filename: "{app}\Unity Agents Bridge.exe"
+Name: "{autodesktop}\Unity Agents Bridge"; Filename: "{app}\Unity Agents Bridge.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\AgentsBridge.Desktop.exe"; Parameters: "--start-daemon"; Description: "Launch AgentsBridge"; Flags: nowait
+Filename: "{app}\Unity Agents Bridge.exe"; Parameters: "--start-daemon"; Description: "Launch Unity Agents Bridge"; Flags: nowait
