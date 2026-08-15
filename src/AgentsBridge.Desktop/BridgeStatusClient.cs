@@ -78,7 +78,7 @@ internal sealed class BridgeStatusClient : IDisposable
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
         {
-            return BridgeDashboard.Offline("The AgentsBridge daemon is not reachable on port 9876.");
+            return BridgeDashboard.Offline("The Unity Agents Bridge daemon is not reachable on port 9876.");
         }
     }
 
@@ -376,7 +376,7 @@ internal sealed record BridgeDashboard(
             EditorState = DaemonConnected ? "Unity offline" : "Offline",
             Summary = DaemonConnected
                 ? "Waiting for a Unity editor connection."
-                : "The AgentsBridge daemon is not reachable on port 9876."
+                : "The Unity Agents Bridge daemon is not reachable on port 9876."
         };
 }
 

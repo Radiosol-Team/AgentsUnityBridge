@@ -76,9 +76,9 @@ internal sealed class MainWindow : Window
         _client = client;
         _releaseUpdater = releaseUpdater;
         _startDaemonOnOpen = startDaemonOnOpen;
-        Title = "AgentsBridge";
+        Title = "Unity Agents Bridge";
         Icon = new WindowIcon(AssetLoader.Open(new Uri(
-            "avares://AgentsBridge.Desktop/Assets/agentsbridge-logo.ico")));
+            "avares://Unity%20Agents%20Bridge/Assets/agentsbridge-logo.ico")));
         Width = 920;
         Height = 780;
         MinWidth = 720;
@@ -160,7 +160,7 @@ internal sealed class MainWindow : Window
 
             _summary.Text = $"Downloading {release.DisplayName}...";
             await _releaseUpdater.InstallAsync(release, _lifetime.Token);
-            _summary.Text = "The update is installing. AgentsBridge will close now.";
+            _summary.Text = "The update is installing. Unity Agents Bridge will close now.";
             if (Application.Current?.ApplicationLifetime is
                 Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
             {
@@ -173,7 +173,7 @@ internal sealed class MainWindow : Window
         }
         catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidOperationException)
         {
-            ShowAlert("AgentsBridge could not install the update: " + exception.Message);
+            ShowAlert("Unity Agents Bridge could not install the update: " + exception.Message);
         }
     }
 
@@ -217,7 +217,7 @@ internal sealed class MainWindow : Window
                     {
                         new TextBlock
                         {
-                            Text = "AgentsBridge",
+                            Text = "Unity Agents Bridge",
                             FontSize = 30,
                             FontWeight = FontWeight.SemiBold,
                             Foreground = Brushes.White
@@ -355,7 +355,7 @@ internal sealed class MainWindow : Window
         UnityProjectInfo? project = FindBestActivationProject();
         if (project is null)
         {
-            _summary.Text = "Unity is running, but I could not infer the project. In Unity, use Tools > Codex Bridge > Connect to AgentsBridge.";
+            _summary.Text = "Unity is running, but I could not infer the project. In Unity, use Tools > Codex Bridge > Connect to Unity Agents Bridge.";
             _forceBridgeButton.IsEnabled = true;
             await RefreshAsync();
             return;
