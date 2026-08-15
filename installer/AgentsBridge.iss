@@ -36,6 +36,14 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+; Remove artifacts from installations that used the pre-rename desktop executable
+; and shortcut names. Keep AppId unchanged so this remains an in-place upgrade.
+Type: files; Name: "{app}\AgentsBridge.Desktop.exe"
+Type: files; Name: "{userprograms}\AgentsBridge\AgentsBridge.lnk"
+Type: dirifempty; Name: "{userprograms}\AgentsBridge"
+Type: files; Name: "{autodesktop}\AgentsBridge.lnk"
+
 [Icons]
 Name: "{group}\Unity Agents Bridge"; Filename: "{app}\Unity Agents Bridge.exe"
 Name: "{autodesktop}\Unity Agents Bridge"; Filename: "{app}\Unity Agents Bridge.exe"; Tasks: desktopicon
