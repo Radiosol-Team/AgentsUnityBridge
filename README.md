@@ -44,7 +44,7 @@ The daemon keeps the latest 250 completed API calls in memory. The desktop dashb
 
 ## Releases
 
-Every push to `main` runs formatting, build, and test validation, creates self-contained packages for Windows, Linux, and Intel/Apple Silicon macOS, and publishes them in a generated GitHub release. The workflow requires the repository's Actions setting to allow `GITHUB_TOKEN` write access to repository contents.
+Pushes to `main` and `Release` run formatting, build, and test validation. Pushes to `Release` also create self-contained packages for Windows, Linux, and Intel/Apple Silicon macOS and publish them in a generated GitHub release. The release workflow requires the repository's Actions setting to allow `GITHUB_TOKEN` write access to repository contents.
 
 Windows users can download `AgentsBridge-win-x64-setup.exe` from the latest release. The per-user installer does not require administrator access, adds AgentsBridge to the Start menu, offers a desktop shortcut, registers a standard Windows uninstaller, and launches the daemon when installation finishes.
 
