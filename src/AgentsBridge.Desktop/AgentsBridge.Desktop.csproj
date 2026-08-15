@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <AssemblyName>Unity Agents Bridge</AssemblyName>
+    <TargetName>Unity Agents Bridge</TargetName>
+    <Title>Unity Agents Bridge</Title>
+    <Product>Unity Agents Bridge</Product>
+    <Description>Unity Agents Bridge</Description>
     <ApplicationIcon>Assets\agentsbridge-logo.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
