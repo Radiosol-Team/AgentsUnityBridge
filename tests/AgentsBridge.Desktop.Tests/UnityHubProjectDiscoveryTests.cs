@@ -43,4 +43,27 @@ public sealed class UnityHubProjectDiscoveryTests
 
         Assert.Empty(projects);
     }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("\"unknown\"")]
+    [InlineData("999999999999999999")]
+    public void Parse_InvalidLastModified_KeepsProjectWithoutTimestamp(string lastModified)
+    {
+        string json = $$"""
+            {
+              "data": {
+                "project": {
+                  "title": "Project",
+                  "path": "missing-project",
+                  "lastModified": {{lastModified}}
+                }
+              }
+            }
+            """;
+
+        UnityProjectInfo project = Assert.Single(UnityHubProjectDiscovery.Parse(json));
+        Assert.Equal("Project", project.Name);
+        Assert.Null(project.LastModified);
+    }
 }
