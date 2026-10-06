@@ -126,8 +126,15 @@ public sealed class UnityHubProjectDiscovery
 
     private static DateTimeOffset? ReadUnixMilliseconds(JsonElement element, string propertyName)
     {
-        return element.TryGetProperty(propertyName, out JsonElement value) && value.TryGetInt64(out long milliseconds)
-            ? DateTimeOffset.FromUnixTimeMilliseconds(milliseconds)
-            : null;
+        if (!element.TryGetProperty(propertyName, out JsonElement value) ||
+            value.ValueKind != JsonValueKind.Number ||
+            !value.TryGetInt64(out long milliseconds) ||
+            milliseconds < DateTimeOffset.MinValue.ToUnixTimeMilliseconds() ||
+            milliseconds > DateTimeOffset.MaxValue.ToUnixTimeMilliseconds())
+        {
+            return null;
+        }
+
+        return DateTimeOffset.FromUnixTimeMilliseconds(milliseconds);
     }
 }
